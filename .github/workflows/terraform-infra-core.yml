@@ -1,0 +1,139 @@
+name: Terraform Infra Core
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [dev, stg, prod]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, stg, prod]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_DEPLOYER_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: sandbox-infra-core/terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: sandbox-infra-core/terraform
+        run: |
+          terraform plan \
+            -var="environment=${{ matrix.env }}" \
+            -var="aws_region=${{ secrets.AWS_REGION }}" \
+            -var="tf_state_bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -var="tf_lock_table=${{ secrets.TF_LOCK_TABLE }}" \
+            -var="is_production=${{ matrix.env == 'prod' }}" \
+            -var="force_destroy_state_bucket=false"
+
+  apply-dev:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: plan
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_DEPLOYER_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: sandbox-infra-core/terraform
+        run: terraform init
+
+      - name: Terraform Apply (dev)
+        working-directory: sandbox-infra-core/terraform
+        run: |
+          terraform apply -auto-approve \
+            -var="environment=dev" \
+            -var="aws_region=${{ secrets.AWS_REGION }}" \
+            -var="tf_state_bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -var="tf_lock_table=${{ secrets.TF_LOCK_TABLE }}" \
+            -var="is_production=false" \
+            -var="force_destroy_state_bucket=false"
+
+  apply-stg:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'stg'
+    runs-on: ubuntu-latest
+    needs: plan
+    environment: stg
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_DEPLOYER_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: sandbox-infra-core/terraform
+        run: terraform init
+
+      - name: Terraform Apply (stg)
+        working-directory: sandbox-infra-core/terraform
+        run: |
+          terraform apply -auto-approve \
+            -var="environment=stg" \
+            -var="aws_region=${{ secrets.AWS_REGION }}" \
+            -var="tf_state_bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -var="tf_lock_table=${{ secrets.TF_LOCK_TABLE }}" \
+            -var="is_production=false" \
+            -var="force_destroy_state_bucket=false"
+
+  apply-prod:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    needs: plan
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_DEPLOYER_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: sandbox-infra-core/terraform
+        run: terraform init
+
+      - name: Terraform Apply (prod)
+        working-directory: sandbox-infra-core/terraform
+        run: |
+          terraform apply -auto-approve \
+            -var="environment=prod" \
+            -var="aws_region=${{ secrets.AWS_REGION }}" \
+            -var="tf_state_bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -var="tf_lock_table=${{ secrets.TF_LOCK_TABLE }}" \
+            -var="is_production=true" \
+            -var="force_destroy_state_bucket=false"

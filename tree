@@ -1,0 +1,26 @@
+Listado de rutas de carpetas
+El número de serie del volumen es 9091-954E
+C:.
++---modules
+¦   +---secret
++---sandbox-audit
+¦   +---src
+¦   +---terraform
++---sandbox-execution
+¦   +---src
+¦   +---terraform
++---sandbox-market-data
+¦   +---src
+¦   +---terraform
++---sandbox-orchestrator
+¦   +---stepfunctions
+¦   +---terraform
++---sandbox-risk
+¦   +---src
+¦   +---terraform
++---sandbox-strategy
+¦   +---src
+¦   +---terraform
++---sandbox-wallet
+    +---src
+    +---terraform

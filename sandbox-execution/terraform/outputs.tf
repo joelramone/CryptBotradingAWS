@@ -19,3 +19,7 @@ output "alpaca_prod_read_policy_json" {
   description = "Policy JSON lectura Alpaca PROD"
   sensitive   = true
 }
+
+output "lambda_runtime_role_arn" {
+  value = try(data.terraform_remote_state.infra_core.outputs.lambda_execution_role_arn, null)
+}
