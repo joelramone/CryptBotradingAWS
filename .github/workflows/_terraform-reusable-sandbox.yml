@@ -1,0 +1,77 @@
+name: _Terraform Sandbox (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      sandbox:
+        description: "Sandbox folder name (e.g., sandbox-market-data)"
+        required: true
+        type: string
+      working_dir:
+        description: "Terraform working dir"
+        required: true
+        type: string
+      environments:
+        description: "JSON array of envs"
+        required: false
+        type: string
+        default: '["dev","stg","prod"]'
+    secrets:
+      AWS_REGION:
+        required: true
+      AWS_TERRAFORM_DEPLOYER_ROLE_ARN:
+        required: true
+      TF_STATE_BUCKET:
+        required: true
+      TF_LOCK_TABLE:
+        required: true
+      TF_STATE_PREFIX:
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: ${{ fromJson(inputs.environments) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_DEPLOYER_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: ${{ inputs.working_dir }}
+        run: |
+          set -euo pipefail
+          PREFIX="${{ secrets.TF_STATE_PREFIX }}"
+          if [ -z "${PREFIX}" ]; then PREFIX="states"; fi
+
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="dynamodb_table=${{ secrets.TF_LOCK_TABLE }}" \
+            -backend-config="region=${{ secrets.AWS_REGION }}" \
+            -backend-config="encrypt=true" \
+            -backend-config="key=${PREFIX}/${{ matrix.env }}/${{ inputs.sandbox }}/terraform.tfstate"
+
+      - name: Terraform Plan
+        working-directory: ${{ inputs.working_dir }}
+        run: |
+          set -euo pipefail
+          PREFIX="${{ secrets.TF_STATE_PREFIX }}"
+          if [ -z "${PREFIX}" ]; then PREFIX="states"; fi
+
+          terraform plan \
+            -var="aws_region=${{ secrets.AWS_REGION }}" \
+            -var="tf_state_bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -var="infra_core_state_key=${PREFIX}/${{ matrix.env }}/sandbox-infra-core/terraform.tfstate"

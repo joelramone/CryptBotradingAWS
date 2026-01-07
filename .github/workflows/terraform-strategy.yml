@@ -1,0 +1,21 @@
+name: Terraform sandbox-strategy
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment for apply"
+        required: true
+        type: choice
+        options: [dev, stg, prod]
+
+jobs:
+  plan:
+    uses: ./.github/workflows/_terraform-reusable-sandbox.yml
+    with:
+      sandbox: sandbox-strategy
+      working_dir: sandbox-strategy/terraform
+    secrets: inherit
